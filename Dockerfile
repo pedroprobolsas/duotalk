@@ -8,6 +8,9 @@ RUN npm ci --omit=dev
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
+# Instalar ffmpeg para conversión de audio (WebM -> PCM16)
+RUN apk add --no-cache ffmpeg
+
 # Copiar dependencias instaladas
 COPY --from=deps /app/node_modules ./node_modules
 

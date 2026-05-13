@@ -17,6 +17,15 @@ const state = {
 // Selección temporal para Crear sala
 const selection = { hostLang: null, guestLang: null };
 
+// Exponer funciones de envío de audio globalmente para que audioCapture.js pueda llamarlas
+window.emitAudioChunk = function(roomId, role, data, seq) {
+  emitAudioChunk(roomId, role, data, seq);
+};
+
+window.emitAudioEnd = function(roomId, role, seq) {
+  emitAudioEnd(roomId, role, seq);
+};
+
 // ── Inicialización ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   connectSocket();
@@ -102,16 +111,21 @@ window.DuoTalk = {
     }
   },
 
-  onTranslationReady({ fromRole, originalText, translatedText }) {
-    hideProcessing();
-    addBubble({
-      role: fromRole,
-      originalText,
-      translatedText,
-      originalLang: fromRole === 'host' ? state.hostLang : state.guestLang,
-      targetLang:   fromRole === 'host' ? state.guestLang : state.hostLang,
-    });
-    // Reproducir audio (Fase 3)
+  onTranslationReady({ fromRole, originalText, translatedText, audioData, isAudioChunk }) {
+    if (isAudioChunk && audioData) {
+      // Reproducir chunk de audio
+      window.globalAudioPlayer.enqueue(audioData);
+    } else {
+      // Texto completo -> añadir burbuja
+      hideProcessing();
+      addBubble({
+        role: fromRole,
+        originalText,
+        translatedText,
+        originalLang: fromRole === 'host' ? state.hostLang : state.guestLang,
+        targetLang:   fromRole === 'host' ? state.guestLang : state.hostLang,
+      });
+    }
   },
 
   onTranslationError({ reason, retry }) {
@@ -226,15 +240,36 @@ function bindSessionScreen() {
     showScreen('home');
   });
 
-  // Micrófono — placeholder hasta Fase 3
+  // Micrófono — Fase 3: grabar y enviar audio
   const btnMic = document.getElementById('btn-mic');
-  btnMic.addEventListener('pointerdown', () => {
+  btnMic.addEventListener('pointerdown', async () => {
+    // Requerido por navegadores para habilitar AudioContext
+    window.globalAudioPlayer.init();
+
     btnMic.classList.add('active');
     showProcessing();
-    // Fase 3: iniciar grabación de audio
+    
+    try {
+      await window.startAudioCapture(state.role, state.roomId);
+    } catch (e) {
+      hideProcessing();
+      btnMic.classList.remove('active');
+      showErrorModal('Micrófono', 'No se pudo acceder al micrófono. Verifica los permisos.');
+    }
   });
-  btnMic.addEventListener('pointerup',    () => { btnMic.classList.remove('active'); });
-  btnMic.addEventListener('pointerleave', () => { btnMic.classList.remove('active'); });
+  
+  const endCapture = () => {
+    if (btnMic.classList.contains('active')) {
+      btnMic.classList.remove('active');
+      window.stopAudioCapture(state.role, state.roomId);
+    }
+  };
+
+  btnMic.addEventListener('pointerup', endCapture);
+  btnMic.addEventListener('pointerleave', endCapture);
+  // Soporte táctil
+  btnMic.addEventListener('touchend', endCapture);
+  btnMic.addEventListener('touchcancel', endCapture);
 }
 
 // ── Detección de código en URL (?sala=ABC123) ────────────────────────────

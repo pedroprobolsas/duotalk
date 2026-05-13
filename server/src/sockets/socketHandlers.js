@@ -1,26 +1,25 @@
 /**
- * socketHandlers.js  — M1 completo
+ * socketHandlers.js  — Fase 3: integración gpt-realtime-translate
  *
  * Contratos exactos de eventos Socket.io (Sección 6 — DuoTalk v1.1)
  * Validaciones de conexión y audio (Sección 4.1 y 4.2)
- * Gestión de turno via TurnManager
- * Acumulación de audio via AudioBuffer
+ * Turno: TurnManager | Audio buffer: AudioBuffer
+ * Traducción: TranslationManager → gpt-realtime-translate (skill §5)
  *
- * Cliente → Servidor:  room:create · room:join · room:leave
- *                      audio:chunk · audio:end · session:save
- *
- * Servidor → Cliente:  room:created · room:joined · room:suspended · room:closed · room:error
- *                      translation:ready · translation:error · turn:blocked · turn:free · session:saved
+ * Fase 3 primer entregable: solo host → guest (sesión A).
+ * Sesión B (guest → host) se activa con OK de Pedro.
  */
 
-import { ROOM_STATUS }  from '../rooms/roomManager.js';
-import { audioBuffer }  from '../audio/audioBuffer.js';
-import { turnManager }  from '../audio/turnManager.js';
+import { ROOM_STATUS }        from '../rooms/roomManager.js';
+import { audioBuffer }        from '../audio/audioBuffer.js';
+import { turnManager }        from '../audio/turnManager.js';
+import { TranslationManager } from '../translation/translationManager.js';
 
-// Umbral mínimo de duración de audio antes de enviar a la API (doc: §4.2 → 500ms)
-// En base64 PCM 16kHz 16-bit mono, 500ms ≈ 16000 bytes → al menos 1 chunk con datos reales.
-// Aquí validamos que haya al menos 1 chunk acumulado con longitud mínima.
-const MIN_AUDIO_BYTES = 1600; // base64 ≈ 1.2 KB mínimo
+// Map global: roomId → TranslationManager
+const translationManagers = new Map();
+
+// Umbral mínimo de audio antes de procesar (§4.2 — 500ms ≈ ≥1 chunk de 250ms)
+const MIN_AUDIO_BYTES = 1600;
 
 export function registerSocketHandlers(io, roomManager) {
 
@@ -29,27 +28,21 @@ export function registerSocketHandlers(io, roomManager) {
 
     // ── room:create ─────────────────────────────────────────────────────────
     socket.on('room:create', ({ hostLang, guestLang } = {}) => {
-      // Validación: idiomas presentes y distintos (§4.3)
       if (!hostLang || !guestLang) {
         return socket.emit('room:error', {
-          code: 'INVALID_LANGS',
+          code:    'INVALID_LANGS',
           message: 'Debes seleccionar ambos idiomas.',
         });
       }
       if (hostLang === guestLang) {
         return socket.emit('room:error', {
-          code: 'SAME_LANG',
+          code:    'SAME_LANG',
           message: 'Los idiomas no pueden ser iguales.',
         });
       }
 
       try {
-        const room = roomManager.createRoom({
-          hostSocketId: socket.id,
-          hostLang,
-          guestLang,
-        });
-
+        const room = roomManager.createRoom({ hostSocketId: socket.id, hostLang, guestLang });
         socket.join(room.id);
         socket.data.roomId = room.id;
         socket.data.role   = 'host';
@@ -64,7 +57,7 @@ export function registerSocketHandlers(io, roomManager) {
         socket.emit('room:error', {
           code:    err.message,
           message: err.message === 'MAX_ROOMS_REACHED'
-            ? 'El servidor está al límite de capacidad. Intenta más tarde.'
+            ? 'El servidor está al límite de capacidad.'
             : 'Error al crear la sala.',
         });
       }
@@ -73,82 +66,49 @@ export function registerSocketHandlers(io, roomManager) {
     // ── room:join ───────────────────────────────────────────────────────────
     socket.on('room:join', ({ roomId, role } = {}) => {
       const normalizedId = roomId?.toString().trim().toUpperCase();
-
-      // Validación básica de payload
       if (!normalizedId || normalizedId.length !== 6) {
-        return socket.emit('room:error', {
-          code:    'INVALID_ROOM_ID',
-          message: 'Código de sala inválido.',
-        });
+        return socket.emit('room:error', { code: 'INVALID_ROOM_ID', message: 'Código inválido.' });
       }
-
-      // Un socket ya unido no puede volver a unirse (race condition §4.1)
       if (socket.data.roomId) {
-        return socket.emit('room:error', {
-          code:    'ALREADY_IN_ROOM',
-          message: 'Ya estás en una sala activa.',
-        });
+        return socket.emit('room:error', { code: 'ALREADY_IN_ROOM', message: 'Ya estás en una sala.' });
       }
 
-      // Reconexión en estado SUSPENDED (§4.1 + §4.3)
+      // Reconexión en SUSPENDED
       const existingRoom = roomManager.getRoom(normalizedId);
       if (existingRoom?.status === ROOM_STATUS.SUSPENDED) {
-        // Determinar qué rol falta y reconectar
         const missingRole = existingRoom.hostSocketId === null ? 'host' : 'guest';
         try {
-          const room = roomManager.reconnectToRoom({
-            roomId:   normalizedId,
-            socketId: socket.id,
-            role:     missingRole,
-          });
-
+          const room = roomManager.reconnectToRoom({ roomId: normalizedId, socketId: socket.id, role: missingRole });
           socket.join(room.id);
           socket.data.roomId = room.id;
           socket.data.role   = missingRole;
-
-          // Notificar a ambos que la sala está activa de nuevo
-          io.to(room.id).emit('room:joined', {
-            roomId:    room.id,
-            hostLang:  room.hostLang,
-            guestLang: room.guestLang,
-          });
+          io.to(room.id).emit('room:joined', { roomId: room.id, hostLang: room.hostLang, guestLang: room.guestLang });
           return;
         } catch {
-          return socket.emit('room:error', {
-            code:    'ROOM_NOT_RESUMABLE',
-            message: 'El tiempo de reconexión expiró. La sala ya cerró.',
-          });
+          return socket.emit('room:error', { code: 'ROOM_NOT_RESUMABLE', message: 'El tiempo de reconexión expiró.' });
         }
       }
 
-      // Unión normal como guest
+      // Unión normal como guest → inicia sesión de traducción
       try {
-        const room = roomManager.joinRoom({
-          roomId:        normalizedId,
-          guestSocketId: socket.id,
-        });
-
+        const room = roomManager.joinRoom({ roomId: normalizedId, guestSocketId: socket.id });
         socket.join(room.id);
         socket.data.roomId = room.id;
         socket.data.role   = 'guest';
 
-        // Ambos participantes reciben room:joined
-        io.to(room.id).emit('room:joined', {
-          roomId:    room.id,
-          hostLang:  room.hostLang,
-          guestLang: room.guestLang,
-        });
+        // Notificar a ambos
+        io.to(room.id).emit('room:joined', { roomId: room.id, hostLang: room.hostLang, guestLang: room.guestLang });
+
+        // Iniciar sesión OpenAI — solo host→guest en Fase 3 primer entregable
+        _startTranslation(room, io, roomManager);
       } catch (err) {
         const messages = {
-          ROOM_NOT_FOUND:     'Sala no encontrada. Verifica el código.',
+          ROOM_NOT_FOUND:     'Sala no encontrada.',
           ROOM_CLOSED:        'Esta sala ya está cerrada.',
-          ROOM_FULL:          'Esta sala ya tiene dos participantes.',
-          ROOM_NOT_AVAILABLE: 'Esta sala no está disponible en este momento.',
+          ROOM_FULL:          'La sala ya tiene dos participantes.',
+          ROOM_NOT_AVAILABLE: 'Esta sala no está disponible.',
         };
-        socket.emit('room:error', {
-          code:    err.message,
-          message: messages[err.message] || 'Error al unirse a la sala.',
-        });
+        socket.emit('room:error', { code: err.message, message: messages[err.message] || 'Error al unirse.' });
       }
     });
 
@@ -158,66 +118,46 @@ export function registerSocketHandlers(io, roomManager) {
     });
 
     // ── audio:chunk ─────────────────────────────────────────────────────────
-    socket.on('audio:chunk', ({ roomId, role, data, seq } = {}) => {
+    // El audio llega como WebM/Opus en base64 desde el browser.
+    // Se convierte a PCM16 en translationManager.processAudio()
+    socket.on('audio:chunk', async ({ roomId, role, data, seq } = {}) => {
       const room = roomManager.getRoom(roomId);
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
 
-      // Validar que el turno esté libre o sea de este rol (§4.2)
-      if (!turnManager.isFree(roomId) && turnManager.getActiveRole(roomId) !== role) {
-        // Turno ocupado por el otro — ignorar silenciosamente
-        // El cliente ya debería haber recibido turn:blocked y deshabilitado el mic
-        return;
-      }
+      // Semáforo de turno (§4.2)
+      if (!turnManager.isFree(roomId) && turnManager.getActiveRole(roomId) !== role) return;
 
-      // Adquirir turno al primer chunk
       if (turnManager.isFree(roomId)) {
         turnManager.acquire(roomId, role);
-
-        // Notificar al otro participante que debe esperar
-        const otherSocketId = role === 'host' ? room.guestSocketId : room.hostSocketId;
-        if (otherSocketId) {
-          io.to(otherSocketId).emit('turn:blocked', { roomId, activeRole: role });
-        }
+        const otherSocket = role === 'host' ? room.guestSocketId : room.hostSocketId;
+        if (otherSocket) io.to(otherSocket).emit('turn:blocked', { roomId, activeRole: role });
       }
 
-      // Acumular chunk en buffer
-      if (data && seq !== undefined) {
-        audioBuffer.addChunk(roomId, role, data, seq);
+      // En Fase 3 enviamos cada chunk directo a OpenAI (streaming continuo)
+      // No acumulamos — el modelo necesita audio continuo incluyendo silencios (skill §2)
+      const mgr = translationManagers.get(roomId);
+      if (mgr && data) {
+        await mgr.processAudio(role, data);
       }
     });
 
     // ── audio:end ───────────────────────────────────────────────────────────
-    socket.on('audio:end', ({ roomId, role, seq } = {}) => {
+    // Señal de fin de intervención (el usuario soltó el botón).
+    // Con streaming continuo esto indica que el hablante terminó una frase.
+    // El modelo detecta el silencio y procesa solo cuando hay una pausa real.
+    socket.on('audio:end', ({ roomId, role } = {}) => {
       const room = roomManager.getRoom(roomId);
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
-
-      // Validar que sea efectivamente el turno de este rol
       if (turnManager.getActiveRole(roomId) !== role) return;
 
-      // Extraer chunks ordenados
-      const chunks = audioBuffer.flushChunks(roomId, role);
-
-      // Validar duración mínima (§4.2 → mínimo 500ms ≈ MIN_AUDIO_BYTES)
-      const totalBytes = chunks.reduce((acc, c) => acc + c.length, 0);
-      if (totalBytes < MIN_AUDIO_BYTES) {
-        console.log(`[AUDIO] Descartado (muy corto): ${totalBytes} bytes`);
-        turnManager.release(roomId);
-        _notifyTurnFree(roomId, room, io);
-        return;
-      }
-
-      console.log(`[AUDIO] Listo para procesar: roomId=${roomId} role=${role} chunks=${chunks.length} bytes=${totalBytes}`);
-
-      // ── Fase 3: aquí se conecta OpenAI Realtime ──────────────────────────
-      // En Fase 2, simulamos la respuesta para validar el flujo completo de turno
-      _simulateTranslation(io, room, role, chunks, roomManager);
+      // Liberar turno: el texto y audio llegarán por los callbacks de TranslationSession
+      // turn:free se emite desde translationManager.onTurnFree cuando text.done llega
+      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role}`);
     });
 
-    // ── session:save ────────────────────────────────────────────────────────
-    // Placeholder — implementación completa en Fase 7 (M9)
+    // ── session:save ─────────────────────────────────────────────────────────
     socket.on('session:save', ({ roomId, category, notes } = {}) => {
-      console.log(`[SESSION] Solicitud de guardado: roomId=${roomId} category=${category}`);
-      // Fase 7: Claude API + guardado en VPS
+      console.log(`[SESSION] save: roomId=${roomId} category=${category}`);
       socket.emit('session:saved', { sessionId: 'PHASE_7_PENDING', filePath: null });
     });
 
@@ -230,39 +170,116 @@ export function registerSocketHandlers(io, roomManager) {
 
       const { room, disconnectedRole, resumeDeadline } = result;
 
-      // Limpiar recursos de audio para este rol
+      // Limpiar recursos
       audioBuffer.clearRoom(room.id);
       turnManager.release(room.id);
 
-      // Notificar al participante restante
-      socket.to(room.id).emit('room:suspended', {
-        roomId:          room.id,
-        disconnectedRole,
-        resumeDeadline,
-      });
+      // Cerrar sesiones OpenAI (se reabren en reconexión)
+      const mgr = translationManagers.get(room.id);
+      if (mgr) {
+        mgr.close();
+        translationManagers.delete(room.id);
+      }
 
-      // Escuchar el cierre definitivo del timer del roomManager
-      // para emitir room:closed cuando el deadline expire
+      socket.to(room.id).emit('room:suspended', { roomId: room.id, disconnectedRole, resumeDeadline });
       _watchRoomClose(room.id, roomManager, io);
     });
   });
 }
 
-// ── Helpers privados ─────────────────────────────────────────────────────────
+// ── Privados ─────────────────────────────────────────────────────────────────
 
 /**
- * Cierre voluntario de sala — flujo ACTIVE → CLOSING → CLOSED
+ * Inicializa la sesión OpenAI cuando el guest se une.
+ * Fase 3 primer entregable: solo sesión A (host → guest).
  */
+async function _startTranslation(room, io, roomManager) {
+  if (translationManagers.has(room.id)) return; // ya iniciada
+
+  const mgr = new TranslationManager({
+    roomId:   room.id,
+    hostLang: room.hostLang,
+    guestLang: room.guestLang,
+
+    onTranslationReady: (payload) => {
+      const targetSocketId = payload.fromRole === 'host'
+        ? room.guestSocketId
+        : room.hostSocketId;
+
+      if (payload.isAudioChunk) {
+        // Streaming de audio en tiempo real → solo al oyente
+        if (targetSocketId) {
+          io.to(targetSocketId).emit('translation:ready', {
+            roomId:         room.id,
+            fromRole:       payload.fromRole,
+            originalText:   null,
+            translatedText: null,
+            audioData:      payload.audioData,
+            isAudioChunk:   true,
+          });
+        }
+      } else {
+        // Texto completo → a ambos (para mostrar burbuja)
+        if (payload.originalText || payload.translatedText) {
+          roomManager.addTranscriptEntry(room.id, {
+            role:          payload.fromRole,
+            originalLang:  payload.fromRole === 'host' ? room.hostLang : room.guestLang,
+            targetLang:    payload.fromRole === 'host' ? room.guestLang : room.hostLang,
+            originalText:  payload.originalText  ?? '',
+            translatedText: payload.translatedText ?? '',
+          });
+          io.to(room.id).emit('translation:ready', {
+            roomId:         room.id,
+            fromRole:       payload.fromRole,
+            originalText:   payload.originalText,
+            translatedText: payload.translatedText,
+            audioData:      null,
+            isAudioChunk:   false,
+          });
+        }
+      }
+    },
+
+    onTranslationError: (payload) => {
+      io.to(room.id).emit('translation:error', { roomId: room.id, ...payload });
+    },
+
+    onTurnFree: (_role) => {
+      turnManager.release(room.id);
+      io.to(room.id).emit('turn:free', { roomId: room.id });
+    },
+  });
+
+  translationManagers.set(room.id, mgr);
+
+  try {
+    // ── Fase 3 primer entregable: solo sesión A ──────────────────────────
+    await mgr.initHostToGuest();
+    console.log(`[TRANSLATE] Sesión A iniciada para sala ${room.id}`);
+
+    // ── Descomentar para activar bidireccional (Fase 3 segundo entregable) ──
+    // await mgr.initGuestToHost();
+    // console.log(`[TRANSLATE] Sesión B iniciada para sala ${room.id}`);
+  } catch (err) {
+    console.error(`[TRANSLATE] Error iniciando sesión para sala ${room.id}:`, err.message);
+    io.to(room.id).emit('translation:error', {
+      roomId: room.id,
+      reason: 'No se pudo conectar con el servicio de traducción.',
+      retry:  false,
+    });
+  }
+}
+
 function _handleClose(roomId, socket, io, roomManager) {
   if (!roomId) return;
   try {
     const room = roomManager.initiateClose(roomId);
-
-    // Limpiar recursos
     audioBuffer.clearRoom(roomId);
     turnManager.clearRoom(roomId);
 
-    // Notificar a ambos
+    const mgr = translationManagers.get(roomId);
+    if (mgr) { mgr.close(); translationManagers.delete(roomId); }
+
     io.to(room.id).emit('room:closed', { roomId: room.id, reason: 'manual' });
     roomManager.finalizeClose(room.id);
   } catch (err) {
@@ -270,54 +287,6 @@ function _handleClose(roomId, socket, io, roomManager) {
   }
 }
 
-/**
- * Emitir turn:free al otro participante y liberar el semáforo.
- */
-function _notifyTurnFree(roomId, room, io) {
-  turnManager.release(roomId);
-  // Notificar a todos en la sala que el turno está libre
-  io.to(roomId).emit('turn:free', { roomId });
-}
-
-/**
- * Simulación de traducción para validar el flujo en Fase 2.
- * En Fase 3 este bloque se reemplaza por la llamada real a OpenAI Realtime.
- */
-function _simulateTranslation(io, room, role, chunks, roomManager) {
-  const sourceText = '[Audio recibido — traducción disponible en Fase 3]';
-  const targetText = '[Translation available in Phase 3]';
-
-  // Simular latencia de API (~800ms)
-  setTimeout(() => {
-    if (room.status !== ROOM_STATUS.ACTIVE) return;
-
-    // Agregar a transcripción del roomManager (para M9)
-    roomManager.addTranscriptEntry(room.id, {
-      role,
-      originalLang:    role === 'host' ? room.hostLang  : room.guestLang,
-      targetLang:      role === 'host' ? room.guestLang : room.hostLang,
-      originalText:    sourceText,
-      translatedText:  targetText,
-    });
-
-    // Emitir resultado a ambos participantes
-    io.to(room.id).emit('translation:ready', {
-      roomId:         room.id,
-      fromRole:       role,
-      originalText:   sourceText,
-      translatedText: targetText,
-      audioData:      null, // Fase 3: audio sintetizado en base64
-    });
-
-    // Liberar turno
-    _notifyTurnFree(room.id, room, io);
-  }, 800);
-}
-
-/**
- * Polling para detectar cuando roomManager cierra una sala por timeout
- * y emitir room:closed a los participantes restantes.
- */
 function _watchRoomClose(roomId, roomManager, io) {
   const check = setInterval(() => {
     const room = roomManager.getRoom(roomId);
@@ -328,7 +297,5 @@ function _watchRoomClose(roomId, roomManager, io) {
       clearInterval(check);
     }
   }, 5_000);
-
-  // Auto-limpiar el interval tras 90 seg (deadline + margen)
   setTimeout(() => clearInterval(check), 90_000);
 }
