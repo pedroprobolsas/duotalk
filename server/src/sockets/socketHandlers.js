@@ -83,6 +83,9 @@ export function registerSocketHandlers(io, roomManager) {
           socket.data.roomId = room.id;
           socket.data.role   = missingRole;
           io.to(room.id).emit('room:joined', { roomId: room.id, hostLang: room.hostLang, guestLang: room.guestLang });
+          
+          // Re-iniciar la sesión OpenAI que se limpió en el disconnect
+          _startTranslation(room, io, roomManager);
           return;
         } catch {
           return socket.emit('room:error', { code: 'ROOM_NOT_RESUMABLE', message: 'El tiempo de reconexión expiró.' });
