@@ -124,6 +124,7 @@ export function registerSocketHandlers(io, roomManager) {
     // El audio llega como WebM/Opus en base64 desde el browser.
     // Se convierte a PCM16 en translationManager.processAudio()
     socket.on('audio:chunk', async ({ roomId, role, data, seq } = {}) => {
+      console.log(`[AUDIO] chunk recibido | sala=${roomId} | rol=${role} | bytes=${data?.length ?? 0}`);
       const room = roomManager.getRoom(roomId);
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
 

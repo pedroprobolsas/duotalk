@@ -50,6 +50,7 @@ window.startAudioCapture = async function(role, roomId) {
 
       // Emitir evento importado globalmente desde socket.js o usar una función puente
       if (window.emitAudioChunk) {
+        console.log(`[CLIENT] audio:chunk emitido | bytes=${base64Data.length}`);
         window.emitAudioChunk(roomId, role, base64Data, sequenceNumber++);
       }
 
