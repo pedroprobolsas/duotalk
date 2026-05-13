@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="DuoTalk — Intérprete personal bidireccional en tiempo real. Habla con cualquier persona en cualquier idioma." />
+  <meta name="theme-color" content="#0A0E1A" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DuoTalk" />
+
+  <title>DuoTalk — Intérprete en Tiempo Real</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <!-- Fuente -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+
+  <!-- ── PANTALLA: Inicio ──────────────────────────────────────────────────── -->
+  <div id="screen-home" class="screen active">
+    <div class="home-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+    <div class="home-content">
+      <div class="logo-wrap">
+        <div class="logo-icon">🌐</div>
+        <h1 class="logo-text">DuoTalk</h1>
+        <p class="logo-sub">Intérprete personal en tiempo real</p>
+      </div>
+      <div class="home-actions">
+        <button id="btn-create" class="btn btn-primary btn-lg">
+          <span class="btn-icon">➕</span>
+          Crear sala
+        </button>
+        <button id="btn-join" class="btn btn-secondary btn-lg">
+          <span class="btn-icon">🔗</span>
+          Unirse con código
+        </button>
+      </div>
+      <p class="home-hint">o escanea el QR que te comparte el anfitrión</p>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA: Crear sala ─────────────────────────────────────────────── -->
+  <div id="screen-create" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" onclick="showScreen('home')">← Volver</button>
+      <h2>Nueva Sala</h2>
+    </div>
+    <div class="screen-body">
+      <p class="screen-desc">Elige los idiomas de la conversación</p>
+
+      <div class="lang-grid" id="lang-grid-host">
+        <p class="lang-label">Tu idioma</p>
+        <!-- generado por JS -->
+      </div>
+
+      <div class="lang-grid" id="lang-grid-guest">
+        <p class="lang-label">Idioma del extranjero</p>
+        <!-- generado por JS -->
+      </div>
+
+      <div id="create-error" class="error-msg hidden"></div>
+
+      <button id="btn-start-room" class="btn btn-primary btn-lg mt-auto">
+        Crear sala
+      </button>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA: Esperando guest ────────────────────────────────────────── -->
+  <div id="screen-waiting" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" id="btn-cancel-wait">✕ Cancelar</button>
+      <h2>Sala creada</h2>
+    </div>
+    <div class="screen-body center">
+      <p class="screen-desc">Muestra este QR o código al otro participante</p>
+
+      <div class="qr-container">
+        <div id="qr-code"></div>
+      </div>
+
+      <div class="room-code-box">
+        <p class="room-code-label">Código manual</p>
+        <p id="room-code-display" class="room-code">------</p>
+        <button id="btn-copy-code" class="btn btn-ghost btn-sm">Copiar</button>
+      </div>
+
+      <div class="waiting-indicator">
+        <div class="pulse-ring"></div>
+        <span>Esperando al otro participante…</span>
+      </div>
+
+      <div class="lang-summary" id="lang-summary"></div>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA: Unirse con código ─────────────────────────────────────── -->
+  <div id="screen-join" class="screen">
+    <div class="screen-header">
+      <button class="btn-back" onclick="showScreen('home')">← Volver</button>
+      <h2>Unirse a sala</h2>
+    </div>
+    <div class="screen-body center">
+      <p class="screen-desc">Escribe el código de 6 caracteres</p>
+
+      <input
+        id="join-code-input"
+        class="code-input"
+        type="text"
+        maxlength="6"
+        placeholder="ABC123"
+        autocomplete="off"
+        autocapitalize="characters"
+      />
+
+      <div id="join-error" class="error-msg hidden"></div>
+
+      <button id="btn-do-join" class="btn btn-primary btn-lg">
+        Unirme
+      </button>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA: Sesión activa ───────────────────────────────────────────── -->
+  <div id="screen-session" class="screen">
+    <div class="session-header">
+      <div class="session-info">
+        <span id="session-langs" class="session-langs">ES ↔ EN</span>
+        <span id="session-timer" class="session-timer">00:00</span>
+      </div>
+      <button id="btn-end-session" class="btn btn-danger btn-sm">Terminar</button>
+    </div>
+
+    <div id="bubble-list" class="bubble-list">
+      <!-- Burbujas de conversación generadas por JS -->
+    </div>
+
+    <div class="session-footer">
+      <div id="turn-indicator" class="turn-indicator hidden">
+        <span class="turn-dot"></span>
+        <span id="turn-text">Espera tu turno…</span>
+      </div>
+      <div id="processing-indicator" class="processing-indicator hidden">
+        <span class="spinner"></span> Procesando…
+      </div>
+
+      <button id="btn-mic" class="btn-mic" aria-label="Hablar">
+        <span class="mic-icon">🎙️</span>
+        <div class="mic-ring"></div>
+      </button>
+      <p id="mic-hint" class="mic-hint">Mantén presionado para hablar</p>
+    </div>
+  </div>
+
+  <!-- ── MODAL: Error de sala ──────────────────────────────────────────────── -->
+  <div id="modal-error" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-icon">⚠️</div>
+      <h3 id="modal-error-title">Error</h3>
+      <p id="modal-error-msg"></p>
+      <button class="btn btn-primary" onclick="showScreen('home')">Volver al inicio</button>
+    </div>
+  </div>
+
+  <!-- ── MODAL: Sala suspendida ────────────────────────────────────────────── -->
+  <div id="modal-suspended" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-icon">📡</div>
+      <h3>Conexión interrumpida</h3>
+      <p id="modal-suspended-msg">El otro participante se desconectó. Esperando reconexión…</p>
+      <div class="countdown-bar">
+        <div id="countdown-fill" class="countdown-fill"></div>
+      </div>
+      <p id="countdown-text" class="countdown-text">60 segundos</p>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/languages.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/socket.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

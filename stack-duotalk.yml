@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  server:
+    image: ghcr.io/pedroprobolsas/duotalk:latest
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ROOM_TTL_MINUTES=30
+      - RESUME_DEADLINE_SECONDS=60
+      - MAX_ROOMS=50
+      - SESSIONS_PATH=/home/duotalk/sessions
+      # ⚠️  Las API keys se inyectan via docker service update — nunca aquí
+      # docker service update --env-add OPENAI_API_KEY=sk-... duotalk_server
+      # docker service update --env-add ANTHROPIC_API_KEY=sk-ant-... duotalk_server
+    volumes:
+      - duotalk_sessions:/home/duotalk/sessions
+    networks:
+      - probolsas
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      labels:
+        # ── Traefik — subdominio ippduo.probolsas.co ──────────────────────
+        - "traefik.enable=true"
+        - "traefik.docker.network=probolsas"
+        - "traefik.http.routers.duotalk.rule=Host(`ippduo.probolsas.co`)"
+        - "traefik.http.routers.duotalk.entrypoints=websecure"
+        - "traefik.http.routers.duotalk.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.duotalk.loadbalancer.server.port=3000"
+        # WebSocket support
+        - "traefik.http.middlewares.duotalk-ws.headers.customRequestHeaders.X-Forwarded-Proto=https"
+        - "traefik.http.routers.duotalk.middlewares=duotalk-ws"
+
+volumes:
+  duotalk_sessions:
+
+networks:
+  probolsas:
+    external: true

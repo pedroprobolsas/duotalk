@@ -1,0 +1,25 @@
+{
+  "name": "duotalk-server",
+  "version": "1.0.0",
+  "description": "DuoTalk — Intérprete Personal Bidireccional en Tiempo Real",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "ws": "^8.17.0",
+    "@anthropic-ai/sdk": "^0.24.3",
+    "openai": "^4.52.7",
+    "dotenv": "^16.4.5",
+    "nanoid": "^5.0.7",
+    "node-cron": "^3.0.3",
+    "fs-extra": "^11.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
