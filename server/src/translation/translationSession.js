@@ -145,11 +145,15 @@ export class TranslationSession {
 
   get isReady() { return this._ready; }
 
-  // ── Procesador de eventos OpenAI ──────────────────────────────────────────
+  // ── Eventos de OpenAI Realtime API ────────────────────────────────────────
   _handleEvent(event) {
-    switch (event.type) {
+    // DEBUG: Loggear TODOS los eventos que responde OpenAI
+    if (event.type !== 'translation.audio.delta') { // Omitir el spam de chunks de audio
+      console.log(`[OpenAI][${this.inputLang}->${this.outputLang}] Evento recibido:`, event.type);
+    }
 
-      case 'session.updated':
+    switch (event.type) {
+      case 'session.created':
         // Confirmación de session.update — no hacer nada
         break;
 
