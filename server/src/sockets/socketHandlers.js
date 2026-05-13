@@ -153,9 +153,13 @@ export function registerSocketHandlers(io, roomManager) {
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
       if (turnManager.getActiveRole(roomId) !== role) return;
 
-      // Liberar turno: el texto y audio llegarán por los callbacks de TranslationSession
-      // turn:free se emite desde translationManager.onTurnFree cuando text.done llega
-      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role}`);
+      // Forzar commit para que OpenAI procese si VAD no lo hizo aún
+      const mgr = translationManagers.get(roomId);
+      if (mgr) {
+        mgr.commitAudio(role);
+      }
+
+      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} — Commit enviado`);
     });
 
     // ── session:save ─────────────────────────────────────────────────────────

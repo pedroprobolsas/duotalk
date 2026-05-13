@@ -125,6 +125,15 @@ export class TranslationSession {
     }));
   }
 
+  // ── Forzar el commit del audio para que VAD procese si se corta el stream ─
+  commitAudio() {
+    if (!this._ready || this._ws?.readyState !== WebSocket.OPEN) return;
+
+    this._ws.send(JSON.stringify({
+      type: 'input_audio_buffer.commit'
+    }));
+  }
+
   // ── Cerrar sesión limpiamente ─────────────────────────────────────────────
   close() {
     clearTimeout(this._renewTimer);

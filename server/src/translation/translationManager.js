@@ -160,6 +160,15 @@ export class TranslationManager {
     }
   }
 
+  // ── Forzar el procesamiento al soltar el botón ────────────────────────────
+  commitAudio(role) {
+    if (role === 'host' && this._sessionA?.isReady) {
+      this._sessionA.commitAudio();
+    } else if (role === 'guest' && this._sessionB?.isReady) {
+      this._sessionB.commitAudio();
+    }
+  }
+
   // ── Estado de las sesiones ────────────────────────────────────────────────
   get hostSessionReady()  { return this._sessionA?.isReady ?? false; }
   get guestSessionReady() { return this._sessionB?.isReady ?? false; }
