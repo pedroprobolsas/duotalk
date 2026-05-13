@@ -245,32 +245,40 @@ function bindSessionScreen() {
 
   // Micrófono — Fase 3: grabar y enviar audio
   const btnMic = document.getElementById('btn-mic');
-  btnMic.addEventListener('pointerdown', async () => {
-    // Requerido por navegadores para habilitar AudioContext
+  let isMicPressed = false;
+
+  btnMic.addEventListener('pointerdown', async (e) => {
+    e.preventDefault();
+    isMicPressed = true;
     window.globalAudioPlayer.init();
 
     btnMic.classList.add('active');
-    showProcessing();
     
     try {
       await window.startAudioCapture(state.role, state.roomId);
+      // Si el usuario soltó el botón MIENTRAS se pedían permisos:
+      if (!isMicPressed) {
+        window.stopAudioCapture(state.role, state.roomId);
+      }
     } catch (e) {
-      hideProcessing();
+      isMicPressed = false;
       btnMic.classList.remove('active');
       showErrorModal('Micrófono', 'No se pudo acceder al micrófono. Verifica los permisos.');
     }
   });
   
-  const endCapture = () => {
+  const endCapture = (e) => {
+    e.preventDefault();
+    isMicPressed = false;
     if (btnMic.classList.contains('active')) {
       btnMic.classList.remove('active');
+      showProcessing(); // Mostrar procesando cuando SUELTA el botón (grabación terminada)
       window.stopAudioCapture(state.role, state.roomId);
     }
   };
 
   btnMic.addEventListener('pointerup', endCapture);
   btnMic.addEventListener('pointerleave', endCapture);
-  // Soporte táctil
   btnMic.addEventListener('touchend', endCapture);
   btnMic.addEventListener('touchcancel', endCapture);
 }
