@@ -52,11 +52,19 @@ window.startAudioCapture = async function(role, roomId) {
       if (window.emitAudioChunk) {
         window.emitAudioChunk(roomId, role, base64Data, sequenceNumber++);
       }
+
+      // Si la grabación ya se detuvo, este es el último chunk. Emitimos audio:end aquí.
+      if (mediaRecorder && mediaRecorder.state === 'inactive') {
+        if (window.emitAudioEnd) {
+          window.emitAudioEnd(roomId, role, sequenceNumber);
+        }
+      }
     };
 
-    // Emitir chunks cada 250ms para baja latencia (flujo continuo)
-    mediaRecorder.start(250);
-    console.log('[AudioCapture] Grabación iniciada.');
+    // Enviar el audio completo cuando se suelte el botón
+    // (Evita que ffmpeg en el servidor falle al recibir chunks sin cabecera WebM)
+    mediaRecorder.start();
+    console.log('[AudioCapture] Grabación iniciada (Push-To-Talk).');
   } catch (err) {
     console.error('[AudioCapture] Error al acceder al micrófono:', err);
     throw err;
@@ -72,11 +80,6 @@ window.stopAudioCapture = function(role, roomId) {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     console.log('[AudioCapture] Grabación detenida.');
-    
-    // Emitir el final de este bloque de habla
-    if (window.emitAudioEnd) {
-      window.emitAudioEnd(roomId, role, sequenceNumber);
-    }
   }
 
   // Detener pistas para liberar el led de grabación del navegador
