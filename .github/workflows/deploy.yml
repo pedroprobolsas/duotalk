@@ -44,16 +44,19 @@ jobs:
         with:
           host:     ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
-          key:      ${{ secrets.SSH_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          timeout:  60s
           script: |
             cd /root/duotalk
 
-            git pull origin main
+            # Sincronizar código (mismo patrón que control-proven)
+            git fetch origin main
+            git reset --hard origin/main
 
-            # Descargar imagen nueva desde GHCR
+            # Descargar imagen nueva desde GHCR (login ya persistido en /root/.docker/config.json)
             docker pull ghcr.io/pedroprobolsas/duotalk:latest
 
-            # Redesplegar stack
+            # Redesplegar stack con la nueva configuración
             docker stack deploy -c stack-duotalk.yml duotalk
 
             # Forzar actualización especificando imagen (evita caché de :latest)
