@@ -10,9 +10,8 @@ services:
       - RESUME_DEADLINE_SECONDS=60
       - MAX_ROOMS=50
       - SESSIONS_PATH=/home/duotalk/sessions
-      # ⚠️  Las API keys se inyectan via docker service update — nunca aquí
-      # docker service update --env-add OPENAI_API_KEY=sk-... duotalk_server
-      # docker service update --env-add ANTHROPIC_API_KEY=sk-ant-... duotalk_server
+    env_file:
+      - .env.production
     volumes:
       - duotalk_sessions:/home/duotalk/sessions
     networks:
