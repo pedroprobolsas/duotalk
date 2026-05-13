@@ -58,6 +58,8 @@ function displayRoomCode(code) {
 // ── Agregar burbuja de conversación ──────────────────────────────────────
 function addBubble({ role, originalText, translatedText, originalLang, targetLang }) {
   const list = document.getElementById('bubble-list');
+  const emptyMsg = document.getElementById('empty-session-msg');
+  if (emptyMsg) emptyMsg.style.display = 'none';
 
   // Límite de 50 burbujas en pantalla (doc: sección 4.3)
   const bubbles = list.querySelectorAll('.bubble');
@@ -73,6 +75,16 @@ function addBubble({ role, originalText, translatedText, originalLang, targetLan
 
   list.appendChild(bubble);
   list.scrollTop = list.scrollHeight;
+}
+
+function clearSessionUI() {
+  const list = document.getElementById('bubble-list');
+  // Eliminar todas las burbujas
+  list.querySelectorAll('.bubble').forEach(b => b.remove());
+  
+  // Mostrar mensaje de estado vacío
+  const emptyMsg = document.getElementById('empty-session-msg');
+  if (emptyMsg) emptyMsg.style.display = 'block';
 }
 
 // ── Indicadores de turno ──────────────────────────────────────────────────

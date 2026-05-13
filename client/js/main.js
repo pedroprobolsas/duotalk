@@ -95,6 +95,8 @@ window.DuoTalk = {
     };
     showErrorModal('Sesión terminada', messages[reason] || 'La sesión ha terminado.');
 
+    clearSessionUI();
+
     // Reset de estado
     Object.assign(state, { role: null, roomId: null, hostLang: null, guestLang: null });
     Object.assign(selection, { hostLang: null, guestLang: null });
@@ -147,6 +149,7 @@ window.DuoTalk = {
 
   onSessionSaved({ sessionId }) {
     clearSession();
+    clearSessionUI();
     showScreen('home');
   },
 };
