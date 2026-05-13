@@ -95,10 +95,12 @@ function emitLeaveRoom(roomId) {
 function emitAudioChunk(roomId, role, data, seq) {
   _socket?.emit('audio:chunk', { roomId, role, data, seq });
 }
+window.emitAudioChunk = emitAudioChunk;
 
 function emitAudioEnd(roomId, role, seq) {
   _socket?.emit('audio:end', { roomId, role, seq });
 }
+window.emitAudioEnd = emitAudioEnd;
 
 function emitSaveSession(roomId, category, notes) {
   _socket?.emit('session:save', { roomId, category, notes });
