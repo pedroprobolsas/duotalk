@@ -78,8 +78,10 @@ window.startAudioCapture = async function(role, roomId) {
  * @param {string} roomId El ID de la sala
  */
 window.stopAudioCapture = function(role, roomId) {
+  let wasRecording = false;
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
+    wasRecording = true;
     console.log('[AudioCapture] Grabación detenida.');
   }
 
@@ -90,4 +92,5 @@ window.stopAudioCapture = function(role, roomId) {
   }
   
   mediaRecorder = null;
+  return wasRecording;
 }

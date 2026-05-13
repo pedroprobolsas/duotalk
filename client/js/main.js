@@ -272,8 +272,10 @@ function bindSessionScreen() {
     isMicPressed = false;
     if (btnMic.classList.contains('active')) {
       btnMic.classList.remove('active');
-      showProcessing(); // Mostrar procesando cuando SUELTA el botón (grabación terminada)
-      window.stopAudioCapture(state.role, state.roomId);
+      const wasRecording = window.stopAudioCapture(state.role, state.roomId);
+      if (wasRecording) {
+        showProcessing(); // Mostrar procesando SOLO si se grabó audio real
+      }
     }
   };
 
