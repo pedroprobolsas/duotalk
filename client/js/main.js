@@ -10,24 +10,59 @@ const _originalError = console.error;
 const _originalWarn = console.warn;
 
 let visualLogDiv = null;
+let logContentDiv = null;
+
 function createVisualLog() {
   if (visualLogDiv) return visualLogDiv;
+  
   visualLogDiv = document.createElement('div');
-  visualLogDiv.id = 'visual-log';
+  visualLogDiv.id = 'visual-log-container';
   visualLogDiv.style.position = 'fixed';
   visualLogDiv.style.bottom = '0';
   visualLogDiv.style.left = '0';
   visualLogDiv.style.width = '100%';
-  visualLogDiv.style.height = '25%';
-  visualLogDiv.style.backgroundColor = 'rgba(0,0,0,0.85)';
-  visualLogDiv.style.color = '#0f0';
-  visualLogDiv.style.overflowY = 'auto';
-  visualLogDiv.style.fontSize = '11px';
-  visualLogDiv.style.padding = '8px';
   visualLogDiv.style.zIndex = '99999';
-  visualLogDiv.style.pointerEvents = 'none'; // No bloquea taps en botones
   visualLogDiv.style.fontFamily = 'monospace';
+  
+  // Header con botón de minimizar
+  const header = document.createElement('div');
+  header.style.backgroundColor = '#333';
+  header.style.color = '#fff';
+  header.style.padding = '4px 8px';
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.fontSize = '12px';
+  header.innerHTML = '<span>Logs de Debug (iOS)</span><button id="toggle-log" style="background:none;border:1px solid #fff;color:#fff;border-radius:4px;padding:2px 8px;">Ocultar</button>';
+  
+  // Contenedor de los textos
+  logContentDiv = document.createElement('div');
+  logContentDiv.style.backgroundColor = 'rgba(0,0,0,0.85)';
+  logContentDiv.style.color = '#0f0';
+  logContentDiv.style.overflowY = 'auto';
+  logContentDiv.style.height = '150px';
+  logContentDiv.style.fontSize = '10px';
+  logContentDiv.style.padding = '8px';
+  
+  visualLogDiv.appendChild(header);
+  visualLogDiv.appendChild(logContentDiv);
   document.body.appendChild(visualLogDiv);
+  
+  const btn = header.querySelector('#toggle-log');
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (logContentDiv.style.display === 'none') {
+      logContentDiv.style.display = 'block';
+      btn.textContent = 'Ocultar';
+    } else {
+      logContentDiv.style.display = 'none';
+      btn.textContent = 'Mostrar';
+    }
+  });
+  
+  // Ocultar por defecto para que no estorbe al crear la sala
+  logContentDiv.style.display = 'none';
+  btn.textContent = 'Mostrar';
+  
   return visualLogDiv;
 }
 
@@ -38,8 +73,8 @@ function uiLog(msg, color = '#0f0') {
   p.style.marginBottom = '3px';
   p.style.wordBreak = 'break-word';
   p.textContent = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
-  visualLogDiv.appendChild(p);
-  visualLogDiv.scrollTop = visualLogDiv.scrollHeight;
+  logContentDiv.appendChild(p);
+  logContentDiv.scrollTop = logContentDiv.scrollHeight;
 }
 
 console.log = (...args) => {
