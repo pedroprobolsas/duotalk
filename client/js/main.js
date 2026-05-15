@@ -77,17 +77,6 @@ window.DuoTalk = {
     setSessionLangs(hostLang, guestLang);
     showScreen('session');
     startSessionTimer();
-
-    // Pre-solicitar permiso de micrófono al entrar a sesión
-    // Evita que iOS interrumpa la grabación con el popup de permiso
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
-        stream.getTracks().forEach(track => track.stop());
-        console.log('[DuoTalk] Permiso de micrófono pre-autorizado');
-      })
-      .catch(err => {
-        console.warn('[DuoTalk] Permiso de micrófono denegado:', err);
-      });
   },
 
   onRoomSuspended({ roomId, disconnectedRole, resumeDeadline }) {
@@ -204,6 +193,15 @@ function bindCreateScreen() {
       return showInlineError('create-error', 'Los idiomas no pueden ser iguales.');
     }
     hideInlineError('create-error');
+    
+    // Pre-solicitar permiso de micrófono mediante gesto del usuario (click)
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        stream.getTracks().forEach(track => track.stop());
+        console.log('[DuoTalk] Permiso de micrófono pre-autorizado (Host)');
+      })
+      .catch(err => console.warn('[DuoTalk] Permiso de micrófono denegado:', err));
+
     emitCreateRoom(selection.hostLang, selection.guestLang);
   });
 }
@@ -241,6 +239,15 @@ function bindJoinScreen() {
       return showInlineError('join-error', 'El código debe tener 6 caracteres.');
     }
     hideInlineError('join-error');
+    
+    // Pre-solicitar permiso de micrófono mediante gesto del usuario (click)
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        stream.getTracks().forEach(track => track.stop());
+        console.log('[DuoTalk] Permiso de micrófono pre-autorizado (Guest)');
+      })
+      .catch(err => console.warn('[DuoTalk] Permiso de micrófono denegado:', err));
+
     emitJoinRoom(code);
   });
 }
