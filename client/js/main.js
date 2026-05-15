@@ -4,6 +4,58 @@
  * Implementa el handler DuoTalk global que escucha los eventos del servidor.
  */
 
+// --- INICIO VISUAL LOG (PARA DEBUG EN IOS) ---
+const _originalLog = console.log;
+const _originalError = console.error;
+const _originalWarn = console.warn;
+
+let visualLogDiv = null;
+function createVisualLog() {
+  if (visualLogDiv) return visualLogDiv;
+  visualLogDiv = document.createElement('div');
+  visualLogDiv.id = 'visual-log';
+  visualLogDiv.style.position = 'fixed';
+  visualLogDiv.style.bottom = '0';
+  visualLogDiv.style.left = '0';
+  visualLogDiv.style.width = '100%';
+  visualLogDiv.style.height = '25%';
+  visualLogDiv.style.backgroundColor = 'rgba(0,0,0,0.85)';
+  visualLogDiv.style.color = '#0f0';
+  visualLogDiv.style.overflowY = 'auto';
+  visualLogDiv.style.fontSize = '11px';
+  visualLogDiv.style.padding = '8px';
+  visualLogDiv.style.zIndex = '99999';
+  visualLogDiv.style.pointerEvents = 'none'; // No bloquea taps en botones
+  visualLogDiv.style.fontFamily = 'monospace';
+  document.body.appendChild(visualLogDiv);
+  return visualLogDiv;
+}
+
+function uiLog(msg, color = '#0f0') {
+  if (!visualLogDiv) createVisualLog();
+  const p = document.createElement('div');
+  p.style.color = color;
+  p.style.marginBottom = '3px';
+  p.style.wordBreak = 'break-word';
+  p.textContent = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
+  visualLogDiv.appendChild(p);
+  visualLogDiv.scrollTop = visualLogDiv.scrollHeight;
+}
+
+console.log = (...args) => {
+  _originalLog(...args);
+  uiLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), '#0f0');
+};
+console.error = (...args) => {
+  _originalError(...args);
+  uiLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), '#f00');
+};
+console.warn = (...args) => {
+  _originalWarn(...args);
+  uiLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), '#ff0');
+};
+// --- FIN VISUAL LOG ---
+
 // ── Estado local ──────────────────────────────────────────────────────────
 const state = {
   role:      null,   // 'host' | 'guest'
