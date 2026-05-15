@@ -77,6 +77,17 @@ window.DuoTalk = {
     setSessionLangs(hostLang, guestLang);
     showScreen('session');
     startSessionTimer();
+
+    // Pre-solicitar permiso de micrófono al entrar a sesión
+    // Evita que iOS interrumpa la grabación con el popup de permiso
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        stream.getTracks().forEach(track => track.stop());
+        console.log('[DuoTalk] Permiso de micrófono pre-autorizado');
+      })
+      .catch(err => {
+        console.warn('[DuoTalk] Permiso de micrófono denegado:', err);
+      });
   },
 
   onRoomSuspended({ roomId, disconnectedRole, resumeDeadline }) {
