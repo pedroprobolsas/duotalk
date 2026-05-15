@@ -146,9 +146,10 @@ export class TranslationSession {
 
   // ── Eventos de OpenAI Realtime API ────────────────────────────────────────
   _handleEvent(event) {
-    // DEBUG: Loggear TODOS los eventos que responde OpenAI
-    if (event.type !== 'translation.audio.delta') { // Omitir el spam de chunks de audio
+    // DEBUG: Loggear TODOS los eventos que responde OpenAI hacia el cliente usando onError
+    if (!['translation.audio.delta', 'session.input_transcript.delta', 'translation.text.delta'].includes(event.type)) { 
       console.log(`[OpenAI][${this.inputLang}->${this.outputLang}] Evento recibido:`, event.type);
+      this.onError(new Error(`[DEBUG EVENTO] ${event.type}`));
     }
 
     switch (event.type) {
