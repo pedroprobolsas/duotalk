@@ -246,37 +246,53 @@ function bindSessionScreen() {
   // Micrófono — Fase 3: grabar y enviar audio
   const btnMic = document.getElementById('btn-mic');
   let isMicPressed = false;
+  let captureReady = false;
 
   btnMic.addEventListener('pointerdown', async (e) => {
     e.preventDefault();
+    if (isMicPressed) return;
     isMicPressed = true;
+    captureReady = false;
     window.globalAudioPlayer.init();
 
+    // Mostrar estado "preparando" mientras iOS resuelve el permiso
     btnMic.classList.add('active');
-    
+    btnMic.style.opacity = '0.6';
+    const origText = btnMic.querySelector('.mic-label')?.textContent;
+
     try {
       await window.startAudioCapture(state.role, state.roomId);
-      // Si el usuario soltó el botón MIENTRAS se pedían permisos:
+      captureReady = true;
+      btnMic.style.opacity = '1';
+
+      // Si el usuario ya soltó mientras esperaba el permiso → detener inmediatamente
       if (!isMicPressed) {
-        window.stopAudioCapture(state.role, state.roomId);
+        btnMic.classList.remove('active');
+        const wasRecording = window.stopAudioCapture(state.role, state.roomId);
+        if (wasRecording) showProcessing();
       }
-    } catch (e) {
+    } catch (err) {
       isMicPressed = false;
+      captureReady = false;
       btnMic.classList.remove('active');
+      btnMic.style.opacity = '1';
       showErrorModal('Micrófono', 'No se pudo acceder al micrófono. Verifica los permisos.');
     }
   });
-  
+
   const endCapture = (e) => {
     e.preventDefault();
     isMicPressed = false;
-    if (btnMic.classList.contains('active')) {
-      btnMic.classList.remove('active');
-      const wasRecording = window.stopAudioCapture(state.role, state.roomId);
-      if (wasRecording) {
-        showProcessing(); // Mostrar procesando SOLO si se grabó audio real
-      }
-    }
+    if (!btnMic.classList.contains('active')) return;
+
+    // Si startCapture aún no terminó → el flag isMicPressed=false
+    // hará que el handler de arriba llame stopAudioCapture cuando resuelva
+    if (!captureReady) return;
+
+    btnMic.classList.remove('active');
+    btnMic.style.opacity = '1';
+    const wasRecording = window.stopAudioCapture(state.role, state.roomId);
+    if (wasRecording) showProcessing();
   };
 
   btnMic.addEventListener('pointerup', endCapture);
