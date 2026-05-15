@@ -1,23 +1,16 @@
 /**
- * audioCapture.js
- * Captura audio del micrófono usando MediaRecorder y envía chunks a través de Socket.io.
- * El formato capturado en la mayoría de navegadores modernos es WebM/Opus,
- * que el servidor luego convertirá a PCM16 usando ffmpeg.
+ * audioCapture.js - CORREGIDO v1.1
+ * Fix: usar onstop para emitir audio:end (no verificar state dentro de ondataavailable)
+ * Fix: timeslice de 250ms para streaming progresivo
+ * Fix: umbral de chunk reducido a 100 bytes (el threshold de 1000 era demasiado alto)
  */
-
 let mediaRecorder = null;
 let stream = null;
 let sequenceNumber = 0;
+let _pendingEnd = false; // flag para emitir audio:end en onstop
 
-/**
- * Solicita permisos e inicia la captura de audio.
- * @param {string} role El rol del usuario ('host' o 'guest')
- * @param {string} roomId El ID de la sala
- */
 window.startAudioCapture = async function(role, roomId) {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    return;
-  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -28,69 +21,57 @@ window.startAudioCapture = async function(role, roomId) {
       }
     });
 
-    // Usar el formato nativo preferido por el navegador (normalmente audio/webm;codecs=opus)
     mediaRecorder = new MediaRecorder(stream);
     sequenceNumber = 0;
+    _pendingEnd = false;
 
     mediaRecorder.ondataavailable = async (e) => {
-      // Ignorar chunks muy pequeños
-      if (e.data.size < 1000) return;
+      // Umbral bajo: 100 bytes (el de 1000 descartaba audio válido corto)
+      if (e.data.size < 100) return;
 
-      // Convertir el Blob a base64 para enviar por socket
       const buffer = await e.data.arrayBuffer();
-      // En el browser btoa requiere un string binario
       let binary = '';
       const bytes = new Uint8Array(buffer);
-      const len = bytes.byteLength;
-      // Procesar en lotes si es muy grande, pero para 250ms está bien directo
-      for (let i = 0; i < len; i++) {
+      for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
       const base64Data = btoa(binary);
 
-      // Emitir evento importado globalmente desde socket.js o usar una función puente
       if (window.emitAudioChunk) {
-        console.log(`[CLIENT] audio:chunk emitido | bytes=${base64Data.length}`);
+        console.log(`[CLIENT] audio:chunk | seq=${sequenceNumber} bytes=${base64Data.length}`);
         window.emitAudioChunk(roomId, role, base64Data, sequenceNumber++);
-      }
-
-      // Si la grabación ya se detuvo, este es el último chunk. Emitimos audio:end aquí.
-      if (mediaRecorder && mediaRecorder.state === 'inactive') {
-        if (window.emitAudioEnd) {
-          window.emitAudioEnd(roomId, role, sequenceNumber);
-        }
       }
     };
 
-    // Enviar el audio completo cuando se suelte el botón
-    // (Evita que ffmpeg en el servidor falle al recibir chunks sin cabecera WebM)
-    mediaRecorder.start();
-    console.log('[AudioCapture] Grabación iniciada (Push-To-Talk).');
+    // ✅ FIX PRINCIPAL: audio:end va en onstop, no en ondataavailable
+    mediaRecorder.onstop = () => {
+      console.log('[AudioCapture] onstop → emitiendo audio:end seq=' + sequenceNumber);
+      if (window.emitAudioEnd) {
+        window.emitAudioEnd(roomId, role, sequenceNumber);
+      }
+    };
+
+    // timeslice 250ms: envía chunks progresivos mientras grabas
+    mediaRecorder.start(250);
+    console.log('[AudioCapture] Grabación iniciada (PTT, timeslice=250ms)');
+
   } catch (err) {
-    console.error('[AudioCapture] Error al acceder al micrófono:', err);
+    console.error('[AudioCapture] Error micrófono:', err);
     throw err;
   }
-}
+};
 
-/**
- * Detiene la captura de audio y libera el micrófono.
- * @param {string} role El rol del usuario ('host' o 'guest')
- * @param {string} roomId El ID de la sala
- */
 window.stopAudioCapture = function(role, roomId) {
   let wasRecording = false;
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+    mediaRecorder.stop(); // dispara onstop → emite audio:end
     wasRecording = true;
     console.log('[AudioCapture] Grabación detenida.');
   }
-
-  // Detener pistas para liberar el led de grabación del navegador
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
     stream = null;
   }
-  
   mediaRecorder = null;
   return wasRecording;
-}
+};
