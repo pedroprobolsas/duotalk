@@ -72,7 +72,6 @@ export class TranslationSession {
               input: {
                 transcription: {
                   model: 'gpt-realtime-whisper',
-                  language: this.inputLang,
                 },
                 noise_reduction: { type: 'near_field' },
               },
