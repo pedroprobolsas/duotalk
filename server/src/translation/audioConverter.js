@@ -28,13 +28,6 @@ export function convertWebmToPcm16(webmBase64) {
 
     const chunks = [];
     ffmpeg.stdout.on('data',  (chunk) => chunks.push(chunk));
-    ffmpeg.stdout.on('end',   ()      => {
-      const pcmBuffer = Buffer.concat(chunks);
-      if (pcmBuffer.length === 0) {
-        return reject(new Error('ffmpeg produjo 0 bytes de PCM'));
-      }
-      resolve(pcmBuffer.toString('base64'));
-    });
 
     ffmpeg.stderr.on('data', (data) => {
       // Solo loggear si hay error real (no warnings)
@@ -46,6 +39,19 @@ export function convertWebmToPcm16(webmBase64) {
 
     ffmpeg.on('error', (err) => {
       reject(new Error(`ffmpeg no disponible: ${err.message}`));
+    });
+
+    ffmpeg.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffmpeg falló con código ${code}`));
+      } else {
+        const pcmBuffer = Buffer.concat(chunks);
+        if (pcmBuffer.length === 0) {
+          reject(new Error('ffmpeg produjo 0 bytes de PCM'));
+        } else {
+          resolve(pcmBuffer.toString('base64'));
+        }
+      }
     });
 
     ffmpeg.stdin.write(inputBuffer);
