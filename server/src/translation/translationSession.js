@@ -72,6 +72,7 @@ export class TranslationSession {
               input: {
                 transcription: {
                   model: 'gpt-realtime-whisper',
+                  language: this.inputLang,
                 },
                 noise_reduction: { type: 'near_field' },
               },
@@ -196,12 +197,13 @@ export class TranslationSession {
       case 'error': {
         const code = event.error?.code;
         console.error(`[OpenAI][${this.roomId}][${this.speakerRole}] Error: ${code}`, event.error);
+        
+        // Propagar el error al cliente para que no se quede cargando
+        this.onError(new Error(event.error?.message || 'Error de API de OpenAI'));
 
         if (code === 'session_expired') {
           console.log(`[OpenAI][${this.roomId}] Reabriendo sesión expirada…`);
           this.open().catch((err) => this.onError(err));
-        } else {
-          this.onError(event.error);
         }
         break;
       }

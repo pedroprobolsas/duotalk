@@ -164,16 +164,22 @@ export class TranslationManager {
         // Concatenar todos los chunks crudos (reconstruye el contenedor completo con headers)
         const fullWebmB64 = Buffer.concat(buffers).toString('base64');
         
-        // Convertir la pista completa (ffmpeg ya no fallará por falta de headers EBML/MP4)
+        // Convertir la pista completa
         const pcm16B64 = await convertWebmToPcm16(fullWebmB64);
         
         session.sendAudio(pcm16B64);
+        // Enviar 1 segundo de silencio para forzar al modelo a detectar el fin de la frase
+        session.sendAudio(Buffer.alloc(48000, 0).toString('base64'));
+        
         session.commitAudio();
       } else if (session?.isReady) {
+        session.sendAudio(Buffer.alloc(48000, 0).toString('base64'));
         session.commitAudio(); // por si acaso
       }
     } catch (err) {
       console.error(`[TranslationManager][${this.roomId}] Conversión completa de audio fallida: ${err.message}`);
+      this.onTranslationError({ reason: `Error procesando audio: ${err.message}`, retry: true });
+      this.onTurnFree(role);
     }
 
     // Vaciar buffers
