@@ -227,7 +227,7 @@ async function _startTranslation(room, io, roomManager) {
           });
         }
       } else {
-        // Texto completo → a ambos (para mostrar burbuja)
+        // Texto completo → a ambos (para mostrar burbuja o destrabar UI)
         if (payload.originalText || payload.translatedText) {
           roomManager.addTranscriptEntry(room.id, {
             role:          payload.fromRole,
@@ -236,15 +236,16 @@ async function _startTranslation(room, io, roomManager) {
             originalText:  payload.originalText  ?? '',
             translatedText: payload.translatedText ?? '',
           });
-          io.to(room.id).emit('translation:ready', {
-            roomId:         room.id,
-            fromRole:       payload.fromRole,
-            originalText:   payload.originalText,
-            translatedText: payload.translatedText,
-            audioData:      null,
-            isAudioChunk:   false,
-          });
         }
+        
+        io.to(room.id).emit('translation:ready', {
+          roomId:         room.id,
+          fromRole:       payload.fromRole,
+          originalText:   payload.originalText,
+          translatedText: payload.translatedText,
+          audioData:      null,
+          isAudioChunk:   false,
+        });
       }
     },
 

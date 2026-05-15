@@ -172,11 +172,10 @@ export class TranslationSession {
         break;
 
       case 'translation.text.done':
-        // Texto traducido completo → disparar burbuja
+        // Texto traducido completo → disparar burbuja (o destrabar UI si está vacío)
         this._translatedText = event.text ?? this._translatedText;
-        if (this._inputTranscript || this._translatedText) {
-          this.onTextDone(this._inputTranscript, this._translatedText);
-        }
+        this.onTextDone(this._inputTranscript, this._translatedText);
+        
         // Resetear acumuladores
         this._inputTranscript = '';
         this._translatedText  = '';

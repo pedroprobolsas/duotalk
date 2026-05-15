@@ -41,8 +41,9 @@ export class TranslationManager {
     // Sesión B: guest habla → host escucha (FASE 3 segundo entregable)
     this._sessionB = null;
 
-    // Audio delta buffer por dirección (para emitir chunks continuos)
-    this._audioBufferA = [];
+    // Audio raw buffer para acumular chunks antes de enviarlos a ffmpeg
+    this._rawAudioBufferA = [];
+    this._rawAudioBufferB = [];
   }
 
   // ── Inicializar solo sesión A (host → guest) ─────────────────────────────
@@ -139,34 +140,45 @@ export class TranslationManager {
 
   // ── Procesar audio entrante ───────────────────────────────────────────────
   /**
-   * Recibe un chunk de audio WebM/Opus en base64, lo convierte a PCM16
-   * y lo reenvía a la sesión OpenAI correspondiente.
+   * Recibe un chunk de audio en base64 (WebM/Opus o MP4/AAC) y lo acumula
+   * en el buffer del rol correspondiente.
    *
    * @param {string} role     'host' | 'guest'
-   * @param {string} webmB64  audio en base64 (WebM/Opus del browser)
+   * @param {string} webmB64  audio en base64 del browser
    */
   async processAudio(role, webmB64) {
-    try {
-      const pcm16B64 = await convertWebmToPcm16(webmB64);
-
-      if (role === 'host' && this._sessionA?.isReady) {
-        this._sessionA.sendAudio(pcm16B64);
-      } else if (role === 'guest' && this._sessionB?.isReady) {
-        this._sessionB.sendAudio(pcm16B64);
-      }
-    } catch (err) {
-      console.error(`[TranslationManager][${this.roomId}] Conversión de audio fallida: ${err.message}`);
-      // No propagar el error — un chunk fallido no debe cerrar la sala
+    if (role === 'host') {
+      this._rawAudioBufferA.push(Buffer.from(webmB64, 'base64'));
+    } else if (role === 'guest') {
+      this._rawAudioBufferB.push(Buffer.from(webmB64, 'base64'));
     }
   }
 
   // ── Forzar el procesamiento al soltar el botón ────────────────────────────
-  commitAudio(role) {
-    if (role === 'host' && this._sessionA?.isReady) {
-      this._sessionA.commitAudio();
-    } else if (role === 'guest' && this._sessionB?.isReady) {
-      this._sessionB.commitAudio();
+  async commitAudio(role) {
+    try {
+      const buffers = role === 'host' ? this._rawAudioBufferA : this._rawAudioBufferB;
+      const session = role === 'host' ? this._sessionA : this._sessionB;
+      
+      if (buffers.length > 0 && session?.isReady) {
+        // Concatenar todos los chunks crudos (reconstruye el contenedor completo con headers)
+        const fullWebmB64 = Buffer.concat(buffers).toString('base64');
+        
+        // Convertir la pista completa (ffmpeg ya no fallará por falta de headers EBML/MP4)
+        const pcm16B64 = await convertWebmToPcm16(fullWebmB64);
+        
+        session.sendAudio(pcm16B64);
+        session.commitAudio();
+      } else if (session?.isReady) {
+        session.commitAudio(); // por si acaso
+      }
+    } catch (err) {
+      console.error(`[TranslationManager][${this.roomId}] Conversión completa de audio fallida: ${err.message}`);
     }
+
+    // Vaciar buffers
+    if (role === 'host') this._rawAudioBufferA = [];
+    if (role === 'guest') this._rawAudioBufferB = [];
   }
 
   // ── Estado de las sesiones ────────────────────────────────────────────────
