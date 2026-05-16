@@ -148,24 +148,34 @@ export function registerSocketHandlers(io, roomManager) {
     // ── audio:end ───────────────────────────────────────────────────────────
     // Señal de fin de intervención (el usuario soltó el botón).
     socket.on('audio:end', ({ roomId, role, seq, mimeType } = {}) => {
+      // DEBUG: Emitir directamente a ESTE socket apenas llegue
+      socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] audio:end ENTRÓ. role=${role}, seq=${seq}`, retry: false });
+
       const room = roomManager.getRoom(roomId);
-      if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
+      if (!room) {
+        socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] Room undefined!`, retry: false });
+        return;
+      }
+      if (room.status !== ROOM_STATUS.ACTIVE) {
+        socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] Room status no es ACTIVE: ${room.status}`, retry: false });
+        return;
+      }
       
       const activeRole = turnManager.getActiveRole(roomId);
       if (activeRole !== role) {
         console.warn(`[SOCKET] audio:end ignorado. role=${role}, active=${activeRole}`);
+        socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] Turno inválido. role=${role}, activeRole=${activeRole}`, retry: false });
         return;
       }
-
-      // Propagar log al UI para asegurar que entró
-      io.to(roomId).emit('translation:error', { roomId, reason: `[DEBUG] audio:end recibido. role=${role}`, retry: false });
 
       // Esperar 500ms para asegurar que el último audio:chunk haya sido procesado
       setTimeout(() => {
         const mgr = translationManagers.get(roomId);
         if (mgr) {
-          io.to(roomId).emit('translation:error', { roomId, reason: `[DEBUG] Ejecutando commitAudio tras 500ms...`, retry: false });
+          socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] Ejecutando commitAudio tras 500ms...`, retry: false });
           mgr.commitAudio(role, mimeType || 'audio/webm');
+        } else {
+          socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] translationManager undefined`, retry: false });
         }
         console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} mime=${mimeType || 'audio/webm'} — Commit enviado con retraso de 500ms`);
       }, 500);
