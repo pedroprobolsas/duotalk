@@ -30,6 +30,7 @@ jobs:
         with:
           context: .
           push: true
+          no-cache: true   # ← siempre compilar desde cero, nunca usar capas viejas
           tags: ghcr.io/pedroprobolsas/duotalk:latest
 
   deploy-to-vps:
@@ -48,20 +49,21 @@ jobs:
           script: |
             cd /root/duotalk
 
-            # Sincronizar código (mismo patrón que control-proven)
+            # 1. Sincronizar solo el stack file (el código ya está en la imagen GHCR)
             git fetch origin main
             git reset --hard origin/main
 
-            # Descargar imagen nueva desde GHCR (login ya persistido en /root/.docker/config.json)
+            # 2. Descargar imagen NUEVA desde GHCR (siempre forzar pull, nunca usar cache local)
             docker pull ghcr.io/pedroprobolsas/duotalk:latest
 
-            # Redesplegar stack con la nueva configuración
-            docker stack deploy -c stack-duotalk.yml duotalk
+            # 3. Redesplegar stack
+            docker stack deploy -c stack-duotalk.yml duotalk --with-registry-auth
 
-            # Forzar actualización especificando imagen (evita caché de :latest)
+            # 4. Forzar que el servicio use exactamente el digest recién bajado
             docker service update \
               --image ghcr.io/pedroprobolsas/duotalk:latest \
-              --force duotalk_server
+              --force \
+              duotalk_server
 
-            # Limpiar imágenes huérfanas
+            # 5. Limpiar imágenes huérfanas
             docker image prune -f
