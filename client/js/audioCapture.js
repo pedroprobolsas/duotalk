@@ -49,11 +49,15 @@ window.startAudioCapture = async function(role, roomId) {
       }
     };
 
-    // ✅ FIX PRINCIPAL: audio:end va en onstop, no en ondataavailable
+    // FIX PRINCIPAL: audio:end va en onstop, no en ondataavailable
     mediaRecorder.onstop = () => {
-      console.log('[AudioCapture] onstop → emitiendo audio:end seq=' + sequenceNumber);
+      // BUILD:20260516-03 — si no ves este texto, el JS que corre es viejo
+      const emitType = typeof window.emitAudioEnd;
+      console.log(`[AudioCapture] onstop v20260516-03 → emitiendo audio:end seq=${sequenceNumber} | emitAudioEnd=${emitType}`);
       if (window.emitAudioEnd) {
         window.emitAudioEnd(roomId, role, sequenceNumber, mediaRecorder.mimeType);
+      } else {
+        console.error('[AudioCapture] ERROR: window.emitAudioEnd no existe!');
       }
     };
 
