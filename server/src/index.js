@@ -17,6 +17,16 @@ app.use(express.json());
 // ── Frontend estático ─────────────────────────────────────────────────────
 // El Dockerfile copia client/ en /app/client
 const clientDir = join(__dirname, '..', 'client');
+
+// Los archivos JS nunca se cachean — crítico para iOS Safari con PWA
+app.use('/js', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
+// El resto de archivos estáticos se sirven normalmente
 app.use(express.static(clientDir));
 
 // ── API endpoints ─────────────────────────────────────────────────────────
