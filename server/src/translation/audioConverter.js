@@ -12,17 +12,20 @@ import { spawn } from 'child_process';
  * @param {string} webmBase64  Audio en base64 (WebM/Opus del browser)
  * @returns {Promise<string>}  Audio en base64 (PCM16, 24kHz, mono)
  */
-export function convertWebmToPcm16(webmBase64) {
+export function convertWebmToPcm16(webmBase64, mimeType = 'audio/webm') {
   return new Promise((resolve, reject) => {
     const inputBuffer = Buffer.from(webmBase64, 'base64');
+    
+    const ffmpegFormat = mimeType.includes('webm') ? 'webm' : 'mp4';
 
-    // ffmpeg: WebM/Opus → PCM16 little-endian, 24kHz, mono
+    // ffmpeg: WebM/Opus o mp4 → PCM16 little-endian, 24kHz, mono
     const ffmpeg = spawn('ffmpeg', [
-      '-loglevel', 'error',    // silenciar logs verbosos
+      '-f',        ffmpegFormat, // Forzar formato explícito
       '-i',        'pipe:0',   // input desde stdin
       '-f',        's16le',    // PCM16 little-endian
       '-ar',       '24000',    // 24.000 Hz (requerido por OpenAI)
       '-ac',       '1',        // mono
+      '-acodec',   'pcm_s16le',
       'pipe:1',                // output a stdout
     ]);
 

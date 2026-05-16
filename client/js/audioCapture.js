@@ -21,7 +21,13 @@ window.startAudioCapture = async function(role, roomId) {
       }
     });
 
-    mediaRecorder = new MediaRecorder(stream);
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/mp4')
+      ? 'audio/mp4'
+      : '';
+
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
     sequenceNumber = 0;
     _pendingEnd = false;
 
@@ -47,7 +53,7 @@ window.startAudioCapture = async function(role, roomId) {
     mediaRecorder.onstop = () => {
       console.log('[AudioCapture] onstop → emitiendo audio:end seq=' + sequenceNumber);
       if (window.emitAudioEnd) {
-        window.emitAudioEnd(roomId, role, sequenceNumber);
+        window.emitAudioEnd(roomId, role, sequenceNumber, mediaRecorder.mimeType);
       }
     };
 

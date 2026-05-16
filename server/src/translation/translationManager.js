@@ -155,7 +155,7 @@ export class TranslationManager {
   }
 
   // ── Forzar el procesamiento al soltar el botón ────────────────────────────
-  async commitAudio(role) {
+  async commitAudio(role, mimeType) {
     try {
       const buffers = role === 'host' ? this._rawAudioBufferA : this._rawAudioBufferB;
       const session = role === 'host' ? this._sessionA : this._sessionB;
@@ -165,7 +165,7 @@ export class TranslationManager {
         const fullWebmB64 = Buffer.concat(buffers).toString('base64');
         
         // Convertir la pista completa
-        const pcm16B64 = await convertWebmToPcm16(fullWebmB64);
+        const pcm16B64 = await convertWebmToPcm16(fullWebmB64, mimeType);
         
         session.sendAudio(pcm16B64);
         // Enviar 1 segundo de silencio para forzar al modelo a detectar el fin de la frase

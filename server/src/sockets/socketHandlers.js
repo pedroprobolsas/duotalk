@@ -147,9 +147,7 @@ export function registerSocketHandlers(io, roomManager) {
 
     // ── audio:end ───────────────────────────────────────────────────────────
     // Señal de fin de intervención (el usuario soltó el botón).
-    // Con streaming continuo esto indica que el hablante terminó una frase.
-    // El modelo detecta el silencio y procesa solo cuando hay una pausa real.
-    socket.on('audio:end', ({ roomId, role } = {}) => {
+    socket.on('audio:end', ({ roomId, role, seq, mimeType } = {}) => {
       const room = roomManager.getRoom(roomId);
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
       if (turnManager.getActiveRole(roomId) !== role) return;
@@ -157,10 +155,10 @@ export function registerSocketHandlers(io, roomManager) {
       // Forzar commit para que OpenAI procese si VAD no lo hizo aún
       const mgr = translationManagers.get(roomId);
       if (mgr) {
-        mgr.commitAudio(role);
+        mgr.commitAudio(role, mimeType || 'audio/webm'); // Fallback a webm si no hay
       }
 
-      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} — Commit enviado`);
+      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} mime=${mimeType || 'audio/webm'} — Commit enviado`);
     });
 
     // ── session:save ─────────────────────────────────────────────────────────

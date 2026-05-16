@@ -97,8 +97,8 @@ function emitAudioChunk(roomId, role, data, seq) {
 }
 window.emitAudioChunk = emitAudioChunk;
 
-function emitAudioEnd(roomId, role, seq) {
-  _socket?.emit('audio:end', { roomId, role, seq });
+function emitAudioEnd(roomId, role, seq, mimeType) {
+  _socket?.emit('audio:end', { roomId, role, seq, mimeType });
 }
 window.emitAudioEnd = emitAudioEnd;
 

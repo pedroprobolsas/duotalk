@@ -109,8 +109,8 @@ window.emitAudioChunk = function(roomId, role, data, seq) {
   emitAudioChunk(roomId, role, data, seq);
 };
 
-window.emitAudioEnd = function(roomId, role, seq) {
-  emitAudioEnd(roomId, role, seq);
+window.emitAudioEnd = function(roomId, role, seq, mimeType) {
+  emitAudioEnd(roomId, role, seq, mimeType);
 };
 
 // ── Inicialización ────────────────────────────────────────────────────────
