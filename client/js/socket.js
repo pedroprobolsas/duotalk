@@ -98,7 +98,14 @@ function emitAudioChunk(roomId, role, data, seq) {
 window.emitAudioChunk = emitAudioChunk;
 
 function emitAudioEnd(roomId, role, seq, mimeType) {
-  _socket?.emit('audio:end', { roomId, role, seq, mimeType });
+  console.log(`[CLIENT] Enviando audio:end → roomId=${roomId} role=${role} seq=${seq} mime=${mimeType}`);
+  _socket?.emit('audio:end', { roomId, role, seq, mimeType }, (ack) => {
+    if (ack) {
+      console.log(`[CLIENT] audio:end ACK recibido del servidor: ${JSON.stringify(ack)}`);
+    } else {
+      console.warn('[CLIENT] audio:end — sin ACK del servidor (posible timeout)');
+    }
+  });
 }
 window.emitAudioEnd = emitAudioEnd;
 

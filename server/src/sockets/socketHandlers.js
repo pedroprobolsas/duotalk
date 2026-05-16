@@ -147,8 +147,11 @@ export function registerSocketHandlers(io, roomManager) {
 
     // ── audio:end ───────────────────────────────────────────────────────────
     // Señal de fin de intervención (el usuario soltó el botón).
-    socket.on('audio:end', ({ roomId, role, seq, mimeType } = {}) => {
-      // DEBUG: Emitir directamente a ESTE socket apenas llegue
+    socket.on('audio:end', ({ roomId, role, seq, mimeType } = {}, ackCallback) => {
+      // Confirmar recepción inmediatamente (Socket.io ACK)
+      if (typeof ackCallback === 'function') {
+        ackCallback({ received: true, roomId, role, seq, serverTime: Date.now() });
+      }
       socket.emit('translation:error', { roomId, reason: `[DEBUG SOCKET] audio:end ENTRÓ. role=${role}, seq=${seq}`, retry: false });
 
       const room = roomManager.getRoom(roomId);
