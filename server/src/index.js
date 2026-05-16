@@ -18,15 +18,24 @@ app.use(express.json());
 // El Dockerfile copia client/ en /app/client
 const clientDir = join(__dirname, '..', 'client');
 
-// Los archivos JS nunca se cachean — crítico para iOS Safari con PWA
-app.use('/js', (req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  next();
-});
+// Servir archivos JS sin caché (critical para iOS Safari/PWA)
+// Usamos setHeaders dentro de express.static para que no sean sobreescritos
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  'Pragma':        'no-cache',
+  'Expires':       '0',
+  'Surrogate-Control': 'no-store',
+};
 
-// El resto de archivos estáticos se sirven normalmente
+app.use('/js', express.static(join(clientDir, 'js'), {
+  etag:         false,
+  lastModified: false,
+  setHeaders:   (res) => {
+    Object.entries(NO_CACHE_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+  },
+}));
+
+// Resto de estáticos (CSS, imágenes, etc.) con caché normal
 app.use(express.static(clientDir));
 
 // ── API endpoints ─────────────────────────────────────────────────────────
