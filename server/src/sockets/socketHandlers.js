@@ -150,12 +150,21 @@ export function registerSocketHandlers(io, roomManager) {
     socket.on('audio:end', ({ roomId, role, seq, mimeType } = {}) => {
       const room = roomManager.getRoom(roomId);
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
-      if (turnManager.getActiveRole(roomId) !== role) return;
+      
+      const activeRole = turnManager.getActiveRole(roomId);
+      if (activeRole !== role) {
+        console.warn(`[SOCKET] audio:end ignorado. role=${role}, active=${activeRole}`);
+        return;
+      }
 
-      // Esperar 500ms para asegurar que el último audio:chunk (que llega a veces fuera de orden) haya sido procesado
+      // Propagar log al UI para asegurar que entró
+      io.to(roomId).emit('translation:error', { roomId, reason: `[DEBUG] audio:end recibido. role=${role}`, retry: false });
+
+      // Esperar 500ms para asegurar que el último audio:chunk haya sido procesado
       setTimeout(() => {
         const mgr = translationManagers.get(roomId);
         if (mgr) {
+          io.to(roomId).emit('translation:error', { roomId, reason: `[DEBUG] Ejecutando commitAudio tras 500ms...`, retry: false });
           mgr.commitAudio(role, mimeType || 'audio/webm');
         }
         console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} mime=${mimeType || 'audio/webm'} — Commit enviado con retraso de 500ms`);
