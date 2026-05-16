@@ -160,21 +160,32 @@ export class TranslationManager {
       const buffers = role === 'host' ? this._rawAudioBufferA : this._rawAudioBufferB;
       const session = role === 'host' ? this._sessionA : this._sessionB;
       
+      console.log(`[TranslationManager][${this.roomId}] commitAudio: role=${role}, buffers=${buffers.length}`);
+
       if (buffers.length > 0 && session?.isReady) {
-        // Concatenar todos los chunks crudos (reconstruye el contenedor completo con headers)
+        // Concatenar todos los chunks crudos
         const fullWebmB64 = Buffer.concat(buffers).toString('base64');
+        console.log(`[TranslationManager][${this.roomId}] Llamando convertWebmToPcm16 con ${fullWebmB64.length} bytes base64`);
         
         // Convertir la pista completa
         const pcm16B64 = await convertWebmToPcm16(fullWebmB64, mimeType);
+        console.log(`[TranslationManager][${this.roomId}] ffmpeg exitoso! Produjo ${pcm16B64.length} bytes PCM base64`);
         
         session.sendAudio(pcm16B64);
-        // Enviar 1 segundo de silencio para forzar al modelo a detectar el fin de la frase
+        console.log(`[TranslationManager][${this.roomId}] Enviado PCM a OpenAI.`);
+        
+        // Enviar 1 segundo de silencio
         session.sendAudio(Buffer.alloc(48000, 0).toString('base64'));
+        console.log(`[TranslationManager][${this.roomId}] Enviado 1 seg de silencio a OpenAI.`);
         
         session.commitAudio();
+        console.log(`[TranslationManager][${this.roomId}] input_audio_buffer.commit enviado a OpenAI.`);
       } else if (session?.isReady) {
         session.sendAudio(Buffer.alloc(48000, 0).toString('base64'));
         session.commitAudio(); // por si acaso
+        console.log(`[TranslationManager][${this.roomId}] Commit enviado con buffers vacíos (solo silencio).`);
+      } else {
+        console.warn(`[TranslationManager][${this.roomId}] Ignorado: buffers=${buffers.length}, sessionReady=${session?.isReady}`);
       }
     } catch (err) {
       console.error(`[TranslationManager][${this.roomId}] Conversión completa de audio fallida: ${err.message}`);
