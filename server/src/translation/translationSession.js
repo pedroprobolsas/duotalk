@@ -131,6 +131,14 @@ export class TranslationSession {
     this._ws.send(JSON.stringify({
       type: 'input_audio_buffer.commit'
     }));
+
+    // Forzar explícitamente la respuesta si VAD falla en detectarlo
+    this._ws.send(JSON.stringify({
+      type: 'response.create',
+      response: {
+        modalities: ['text', 'audio']
+      }
+    }));
   }
 
   // ── Cerrar sesión limpiamente ─────────────────────────────────────────────

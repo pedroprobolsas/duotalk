@@ -152,13 +152,14 @@ export function registerSocketHandlers(io, roomManager) {
       if (!room || room.status !== ROOM_STATUS.ACTIVE) return;
       if (turnManager.getActiveRole(roomId) !== role) return;
 
-      // Forzar commit para que OpenAI procese si VAD no lo hizo aún
-      const mgr = translationManagers.get(roomId);
-      if (mgr) {
-        mgr.commitAudio(role, mimeType || 'audio/webm'); // Fallback a webm si no hay
-      }
-
-      console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} mime=${mimeType || 'audio/webm'} — Commit enviado`);
+      // Esperar 500ms para asegurar que el último audio:chunk (que llega a veces fuera de orden) haya sido procesado
+      setTimeout(() => {
+        const mgr = translationManagers.get(roomId);
+        if (mgr) {
+          mgr.commitAudio(role, mimeType || 'audio/webm');
+        }
+        console.log(`[SOCKET] audio:end roomId=${roomId} role=${role} mime=${mimeType || 'audio/webm'} — Commit enviado con retraso de 500ms`);
+      }, 500);
     });
 
     // ── session:save ─────────────────────────────────────────────────────────
