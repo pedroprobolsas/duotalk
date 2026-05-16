@@ -104,14 +104,8 @@ const state = {
 // Selección temporal para Crear sala
 const selection = { hostLang: null, guestLang: null };
 
-// Exponer funciones de envío de audio globalmente para que audioCapture.js pueda llamarlas
-window.emitAudioChunk = function(roomId, role, data, seq) {
-  emitAudioChunk(roomId, role, data, seq);
-};
-
-window.emitAudioEnd = function(roomId, role, seq, mimeType) {
-  emitAudioEnd(roomId, role, seq, mimeType);
-};
+// Funciones globales expuestas en socket.js
+// emitAudioChunk y emitAudioEnd se utilizan directamente
 
 // ── Inicialización ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
