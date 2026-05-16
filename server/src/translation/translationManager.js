@@ -170,6 +170,7 @@ export class TranslationManager {
         // Convertir la pista completa
         const pcm16B64 = await convertWebmToPcm16(fullWebmB64, mimeType);
         console.log(`[TranslationManager][${this.roomId}] ffmpeg exitoso! Produjo ${pcm16B64.length} bytes PCM base64`);
+        this.onTranslationError({ reason: `[DEBUG] ffmpeg exitoso: ${pcm16B64.length} bytes PCM enviados a OpenAI`, retry: true });
         
         session.sendAudio(pcm16B64);
         console.log(`[TranslationManager][${this.roomId}] Enviado PCM a OpenAI.`);
@@ -186,6 +187,8 @@ export class TranslationManager {
         console.log(`[TranslationManager][${this.roomId}] Commit enviado con buffers vacíos (solo silencio).`);
       } else {
         console.warn(`[TranslationManager][${this.roomId}] Ignorado: buffers=${buffers.length}, sessionReady=${session?.isReady}`);
+        this.onTranslationError({ reason: `Error: OpenAI session not ready (sessionReady=false)`, retry: true });
+        this.onTurnFree(role);
       }
     } catch (err) {
       console.error(`[TranslationManager][${this.roomId}] Conversión completa de audio fallida: ${err.message}`);
